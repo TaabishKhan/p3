@@ -6,6 +6,26 @@ int num_worker = 0;  //Global integer to indicate the number of worker threads
 FILE *logfile;  //Global file pointer to the log file
 int queue_len = 0; //Global integer to indicate the length of the queue
 
+// Queue structures
+request_t request_queue[100];  // Holds requests up to the max queue length
+int queue_count = 0;           // Tracks the number of requests in the queue
+int add_index = 0;             // Tracks where to add a new request
+int remove_index = 0;          // Tracks where to remove a request
+
+// Synchronization tools
+pthread_mutex_t queue_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t queue_not_full = PTHREAD_COND_INITIALIZER;
+pthread_cond_t queue_not_empty = PTHREAD_COND_INITIALIZER;
+
+// Database of images
+database_entry_t database[100];
+int database_count = 0;
+
+// Thread arrays
+pthread_t dispatcher_threads[100];
+pthread_t worker_threads[100];
+
+// /********************* [ Begin Main Program ] **********************/
 /* TODO: Intermediate Submission
   TODO: Add any global variables that you may need to track the requests and threads
   [multiple funct]  --> How will you track the p_thread's that you create for workers?
@@ -78,7 +98,9 @@ database_entry_t image_match(char *input_image, int size)
        - no return value
 ************************************************/
 void LogPrettyPrint(FILE* to_write, int threadId, int requestNumber, char * file_name, int file_size){
-  
+
+  // Logs request details to the log file or console
+  fprintf(to_write ? to_write : stdout, "[%d][%d][%s][%d bytes]\n", threadId, requestNumber, file_name, file_size);
 }
 
 
@@ -242,13 +264,14 @@ int main(int argc , char *argv[])
       printf("ERROR : Fail to join dispatcher thread %d.\n", i);
     }
   }
+
   for(i = 0; i < num_worker; i++){
    // fprintf(stderr, "JOINING WORKER %d \n",i);
     if((pthread_join(worker_thread[i], NULL)) != 0){
       printf("ERROR : Fail to join worker thread %d.\n", i);
     }
   }
+
   fprintf(stderr, "SERVER DONE \n");  // will never be reached in SOLUTION
   fclose(logfile);//closing the log files
-
 }
