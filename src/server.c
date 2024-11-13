@@ -89,9 +89,11 @@ database_entry_t image_match(char *input_image, int size) {
       - to_write: file pointer for the log file or NULL for stdout
       - threadId, requestNumber, file_name, file_size: log details
 ************************************************/
-void LogPrettyPrint(FILE *to_write, int threadId, int requestNumber, char *file_name, int file_size) {
-    fprintf(to_write ? to_write : stdout, "[%d][%d][%s][%d bytes]\n", threadId, requestNumber, file_name, file_size);
+void LogPrettyPrint(FILE *to_write, int level, int threadId, int requestNumber, char *file_name, int file_size, double mse) {
+    fprintf(to_write ? to_write : stdout, "[%d][%d][%d][%s][%d bytes][%.2f MSE]\n", 
+            level, threadId, requestNumber, file_name, file_size, mse);
 }
+
 
 /**********************************************
  * loadDatabase
@@ -220,13 +222,18 @@ void *worker(void *thread_id) {
         pthread_cond_signal(&queue_not_full);
         pthread_mutex_unlock(&queue_mutex);
 
+        // Initialize mse to 0 before performing the match
+        double mse = 0.0;
+
         // Perform image matching on the request buffer
         database_entry_t match = image_match(req.buffer, req.file_size);
 
         // If a matching image is found, send it to the client and log the transaction
         if (match.buffer) {
             send_file_to_client(req.file_descriptor, match.buffer, match.file_size);
-            LogPrettyPrint(logfile, thread_id_num, ++request_num, match.file_name, match.file_size);
+            printf("Logging request %d by thread %d\n", request_num, thread_id_num);
+            LogPrettyPrint(logfile, 0, thread_id_num, ++request_num, match.file_name, match.file_size, mse);
+            printf("Logged successfully\n");
         }
 
         // Clean up resources for the request
@@ -234,6 +241,8 @@ void *worker(void *thread_id) {
         free(req.buffer);
     }
 }
+
+
 
 /**********************************************
  * main
