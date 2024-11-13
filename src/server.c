@@ -1,277 +1,291 @@
 #include "../include/server.h"
+#include <math.h>
+#include <float.h>  // For DBL_MAX
 
-// /********************* [ Helpful Global Variables ] **********************/
-int num_dispatcher = 0; //Global integer to indicate the number of dispatcher threads   
-int num_worker = 0;  //Global integer to indicate the number of worker threads
-FILE *logfile;  //Global file pointer to the log file
-int queue_len = 0; //Global integer to indicate the length of the queue
+// Global Variables
+int num_dispatcher = 0; // Number of dispatcher threads
+int num_worker = 0;     // Number of worker threads
+FILE *logfile;          // Log file pointer
+int queue_len = 0;      // Request queue length
 
-// Queue structures
-request_t request_queue[100];  // Holds requests up to the max queue length
-int queue_count = 0;           // Tracks the number of requests in the queue
-int add_index = 0;             // Tracks where to add a new request
-int remove_index = 0;          // Tracks where to remove a request
+// Queue structures and indices for tracking request addition/removal
+request_t request_queue[100];
+int queue_count = 0;           
+int add_index = 0;             
+int remove_index = 0;          
 
-// Synchronization tools
+// Synchronization tools for request queue management
 pthread_mutex_t queue_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t queue_not_full = PTHREAD_COND_INITIALIZER;
 pthread_cond_t queue_not_empty = PTHREAD_COND_INITIALIZER;
 
-// Database of images
+// Database to store preloaded images
 database_entry_t database[100];
 int database_count = 0;
 
-// Thread arrays
+// Thread arrays for dispatchers and workers
 pthread_t dispatcher_threads[100];
 pthread_t worker_threads[100];
 
-// /********************* [ Begin Main Program ] **********************/
-/* TODO: Intermediate Submission
-  TODO: Add any global variables that you may need to track the requests and threads
-  [multiple funct]  --> How will you track the p_thread's that you create for workers?
-  [multiple funct]  --> How will you track the p_thread's that you create for dispatchers?
-  [multiple funct]  --> Might be helpful to track the ID's of your threads in a global array
-  What kind of locks will you need to make everything thread safe? [Hint you need multiple]
-  What kind of CVs will you need  (i.e. queue full, queue empty) [Hint you need multiple]
-  How will you track the number of images in the database?
-  How will you track the requests globally between threads? How will you ensure this is thread safe? Example: request_t req_entries[MAX_QUEUE_LEN]; 
-  [multiple funct]  --> How will you update and utilize the current number of requests in the request queue?
-  [worker()]        --> How will you track which index in the request queue to remove next? 
-  [dispatcher()]    --> How will you know where to insert the next request received into the request queue?
-  [multiple funct]  --> How will you track the p_thread's that you create for workers? TODO
-  How will you store the database of images? What data structure will you use? Example: database_entry_t database[100]; 
-*/
+/**********************************************
+ * calculate_mse
+   - Calculates Mean Squared Error (MSE) between
+     two image buffers for similarity comparison
+   - Parameters:
+      - image1, image2: image buffers to compare
+      - size: size of the images
+   - Returns:
+       - The MSE value between the two images
+************************************************/
+static double calculate_mse(char *image1, char *image2, int size) {
+    double mse = 0.0;
+    for (int i = 0; i < size; i++) {
+        int diff = (unsigned char)image1[i] - (unsigned char)image2[i];
+        mse += diff * diff;
+    }
+    return mse / size;
+}
 
-
-//TODO: Implement this function
 /**********************************************
  * image_match
-   - parameters:
-      - input_image is the image data to compare
-      - size is the size of the image data
-   - returns:
-       - database_entry_t that is the closest match to the input_image
+   - Finds the closest match in the database to the input image
+   - Parameters:
+      - input_image: the image data to compare
+      - size: the size of the image data
+   - Returns:
+       - database_entry_t of the closest match
 ************************************************/
-//just uncomment out when you are ready to implement this function
-database_entry_t image_match(char *input_image, int size)
-{
-  // const char *closest_file     = NULL;
-	// int         closest_distance = 10;
-  // int closest_index = 0;
-  // for(int i = 0; i < 0 /* replace with your database size*/; i++)
-	// {
-	// 	const char *current_file; /* TODO: assign to the buffer from the database struct*/
-	// 	int result = memcmp(input_image, current_file, size);
-	// 	if(result == 0)
-	// 	{
-	// 		return database[i];
-	// 	}
+database_entry_t image_match(char *input_image, int size) {
+    database_entry_t best_match;
+    double min_mse = DBL_MAX;
 
-	// 	else if(result < closest_distance)
-	// 	{
-	// 		closest_distance = result;
-	// 		closest_file     = current_file;
-  //     closest_index = i;
-	// 	}
-	// }
+    // Initialize best_match with empty values to indicate no match if not found
+    best_match.file_name[0] = '\0';
+    best_match.file_size = 0;
+    best_match.buffer = NULL;
 
-	// if(closest_file != NULL)
-	// {
-  //   return database[closest_index];
-	// }
-  // else
-  // {
-  //   printf("No closest file found.\n");
-  // }
-  
-  
+    // Iterate over each image in the database to find the closest match
+    for (int i = 0; i < database_count; i++) {
+        database_entry_t *db_entry = &database[i];
+        
+        // Compare only images of the same size
+        if (db_entry->file_size == size) {
+            double mse = calculate_mse(input_image, db_entry->buffer, size);
+
+            // Update best match if the current image has a lower MSE
+            if (mse < min_mse) {
+                min_mse = mse;
+                best_match = *db_entry;
+            }
+        }
+    }
+    return best_match;
 }
 
-//TODO: Implement this function
 /**********************************************
  * LogPrettyPrint
-   - parameters:
-      - to_write is expected to be an open file pointer, or it 
-        can be NULL which means that the output is printed to the terminal
-      - All other inputs are self explanatory or specified in the writeup
-   - returns:
-       - no return value
+   - Logs request details to a file or console
+   - Parameters:
+      - to_write: file pointer for the log file or NULL for stdout
+      - threadId, requestNumber, file_name, file_size: log details
 ************************************************/
-void LogPrettyPrint(FILE* to_write, int threadId, int requestNumber, char * file_name, int file_size){
-
-  // Logs request details to the log file or console
-  fprintf(to_write ? to_write : stdout, "[%d][%d][%s][%d bytes]\n", threadId, requestNumber, file_name, file_size);
+void LogPrettyPrint(FILE *to_write, int threadId, int requestNumber, char *file_name, int file_size) {
+    fprintf(to_write ? to_write : stdout, "[%d][%d][%s][%d bytes]\n", threadId, requestNumber, file_name, file_size);
 }
 
+/**********************************************
+ * loadDatabase
+   - Loads images from a directory into the database
+   - Parameters:
+      - path: path to the directory containing images
+   - This function traverses the specified directory,
+     reads each image into memory, and adds it to the
+     global database for fast lookup.
+************************************************/
+void loadDatabase(char *path) {
+    DIR *dir = opendir(path);
+    struct dirent *entry;
 
-/*
-  TODO: Implement this function for Intermediate Submission
-  * loadDatabase
-    - parameters:
-        - path is the path to the directory containing the images
-    - returns:
-        - no return value
-    - Description:
-        - Traverse the directory and load all the images into the database
-          - Load the images from the directory into the database
-          - You will need to read the images into memory
-          - You will need to store the file name in the database_entry_t struct
-          - You will need to store the file size in the database_entry_t struct
-          - You will need to store the image data in the database_entry_t struct
-          - You will need to increment the number of images in the database
-*/
-/***********/
+    if (!dir) {
+        perror("Failed to open database directory");
+        return;
+    }
 
-void loadDatabase(char *path)
-{
- 
+    // Read each file in the directory
+    while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_type == DT_REG) {  // Only process regular files
+            char file_path[1024];
+            snprintf(file_path, sizeof(file_path), "%s/%s", path, entry->d_name);
+
+            FILE *file = fopen(file_path, "rb");
+            if (!file) continue;
+
+            // Read file size
+            fseek(file, 0, SEEK_END);
+            int file_size = ftell(file);
+            fseek(file, 0, SEEK_SET);
+
+            // Allocate buffer to store file content
+            char *buffer = malloc(file_size);
+            if (!buffer) {
+                fclose(file);
+                continue;
+            }
+
+            // Read file content into buffer
+            fread(buffer, 1, file_size, file);
+            fclose(file);
+
+            // Store file details in database
+            database_entry_t *db_entry = &database[database_count++];
+            strcpy(db_entry->file_name, entry->d_name);
+            db_entry->file_size = file_size;
+            db_entry->buffer = buffer;
+        }
+    }
+    closedir(dir);
 }
 
+/**********************************************
+ * dispatch
+   - Dispatcher thread function to accept client connections,
+     receive image requests, and add requests to the queue
+   - Each dispatcher thread will continuously accept new client
+     requests, read image data, and queue it for worker threads.
+************************************************/
+void *dispatch(void *thread_id) {
+    while (1) {
+        size_t file_size;
+        int fd = accept_connection();  // Get client connection file descriptor
+        if (fd < 0) continue;
 
-void * dispatch(void *thread_id) 
-{   
-  while (1) 
-  {
-    size_t file_size = 0;
-    request_detials_t request_details;
+        // Read image data from the client
+        char *buffer = get_request_server(fd, &file_size);
+        if (!buffer) {
+            close(fd);
+            continue;
+        }
 
-    /* TODO: Intermediate Submission
-    *    Description:      Accept client connection
-    *    Utility Function: int accept_connection(void)
-    */
+        // Lock the queue before adding a new request
+        pthread_mutex_lock(&queue_mutex);
 
-    
-    /* TODO: Intermediate Submission
-    *    Description:      Get request from client
-    *    Utility Function: char * get_request_server(int fd, size_t *filelength)
-    */
+        // Wait if the queue is full
+        while (queue_count == queue_len) {
+            pthread_cond_wait(&queue_not_full, &queue_mutex);
+        }
 
-   /* TODO
-    *    Description:      Add the request into the queue
-        //(1) Copy the filename from get_request_server into allocated memory to put on request queue
-        
+        // Add request to queue at the next available slot
+        request_t *req = &request_queue[add_index];
+        req->file_descriptor = fd;
+        req->buffer = buffer;
+        req->file_size = file_size;
 
-        //(2) Request thread safe access to the request queue
+        add_index = (add_index + 1) % queue_len;
+        queue_count++;
 
-        //(3) Check for a full queue... wait for an empty one which is signaled from req_queue_notfull
-
-        //(4) Insert the request into the queue
-        
-        //(5) Update the queue index in a circular fashion (i.e. update on circular fashion which means when the queue is full we start from the beginning again) 
-
-        //(6) Release the lock on the request queue and signal that the queue is not empty anymore
-   */
-  }
+        // Signal that the queue is not empty and unlock
+        pthread_cond_signal(&queue_not_empty);
+        pthread_mutex_unlock(&queue_mutex);
+    }
     return NULL;
 }
 
-void * worker(void *thread_id) {
+/**********************************************
+ * worker
+   - Worker thread function to retrieve requests from the queue,
+     match images, send responses to clients, and log requests
+   - Each worker retrieves requests from the queue, matches the
+     image to the best match in the database, and sends the
+     result back to the client.
+************************************************/
+void *worker(void *thread_id) {
+    int thread_id_num = *(int *)thread_id;
+    int request_num = 0;
 
-  // You may use them or not, depends on how you implement the function
-  int num_request = 0;                                    //Integer for tracking each request for printing into the log file
-  int fileSize    = 0;                                    //Integer to hold the size of the file being requested
-  void *memory    = NULL;                                 //memory pointer where contents being requested are read and stored
-  int fd          = INVALID;                              //Integer to hold the file descriptor of incoming request
-  char *mybuf;                                  //String to hold the contents of the file being requested
+    while (1) {
+        // Lock the queue before removing a request
+        pthread_mutex_lock(&queue_mutex);
 
+        // Wait if the queue is empty
+        while (queue_count == 0) {
+            pthread_cond_wait(&queue_not_empty, &queue_mutex);
+        }
 
-  /* TODO : Intermediate Submission 
-  *    Description:      Get the id as an input argument from arg, set it to ID
-  */
-    
-  while (1) {
-    /* TODO
-    *    Description:      Get the request from the queue and do as follows
-      //(1) Request thread safe access to the request queue by getting the req_queue_mutex lock
-      //(2) While the request queue is empty conditionally wait for the request queue lock once the not empty signal is raised
+        // Retrieve the next request from the queue
+        request_t req = request_queue[remove_index];
+        remove_index = (remove_index + 1) % queue_len;
+        queue_count--;
 
-      //(3) Now that you have the lock AND the queue is not empty, read from the request queue
+        // Signal that the queue has space and unlock
+        pthread_cond_signal(&queue_not_full);
+        pthread_mutex_unlock(&queue_mutex);
 
-      //(4) Update the request queue remove index in a circular fashion
+        // Perform image matching on the request buffer
+        database_entry_t match = image_match(req.buffer, req.file_size);
 
-      //(5) Fire the request queue not full signal to indicate the queue has a slot opened up and release the request queue lock  
-      */
-        
-      
-    /* TODO
-    *    Description:       Call image_match with the request buffer and file size
-    *    store the result into a typeof database_entry_t
-    *    send the file to the client using send_file_to_client(int fd, char * buffer, int size)              
-    */
+        // If a matching image is found, send it to the client and log the transaction
+        if (match.buffer) {
+            send_file_to_client(req.file_descriptor, match.buffer, match.file_size);
+            LogPrettyPrint(logfile, thread_id_num, ++request_num, match.file_name, match.file_size);
+        }
 
-    /* TODO
-    *    Description:       Call LogPrettyPrint() to print server log
-    *    update the # of request (include the current one) this thread has already done, you may want to have a global array to store the number for each thread
-    *    parameters passed in: refer to write up
-    */
-  }
+        // Clean up resources for the request
+        close(req.file_descriptor);
+        free(req.buffer);
+    }
 }
 
-int main(int argc , char *argv[])
-{
-   if(argc != 6){
-    printf("usage: %s port path num_dispatcher num_workers queue_length \n", argv[0]);
-    return -1;
-  }
-
-
-  int port            = -1;
-  char path[BUFF_SIZE] = "no path set\0";
-  num_dispatcher      = -1;                               //global variable
-  num_worker          = -1;                               //global variable
-  queue_len           = -1;                               //global variable
- 
-
-  /* TODO: Intermediate Submission
-  *    Description:      Get the input args --> (1) port (2) database path (3) num_dispatcher (4) num_workers  (5) queue_length
-  */
-  
-
-  /* TODO: Intermediate Submission
-  *    Description:      Open log file
-  *    Hint:             Use Global "File* logfile", use "server_log" as the name, what open flags do you want?
-  */
-  
- 
-
-  /* TODO: Intermediate Submission
-  *    Description:      Start the server
-  *    Utility Function: void init(int port); //look in utils.h 
-  */
-
-
-  /* TODO : Intermediate Submission
-  *    Description:      Load the database
-  *    Function: void loadDatabase(char *path); // prototype in server.h
-  */
- 
-
-  /* TODO: Intermediate Submission
-  *    Description:      Create dispatcher and worker threads 
-  *    Hints:            Use pthread_create, you will want to store pthread's globally
-  *                      You will want to initialize some kind of global array to pass in thread ID's
-  *                      How should you track this p_thread so you can terminate it later? [global]
-  */
-
-
-
-  // Wait for each of the threads to complete their work
-  // Threads (if created) will not exit (see while loop), but this keeps main from exiting
-  int i;
-  for(i = 0; i < num_dispatcher; i++){
-    fprintf(stderr, "JOINING DISPATCHER %d \n",i);
-    if((pthread_join(dispatcher_thread[i], NULL)) != 0){
-      printf("ERROR : Fail to join dispatcher thread %d.\n", i);
+/**********************************************
+ * main
+   - Initializes the server, loads the database, creates threads,
+     and waits for threads to complete
+   - Parses command-line arguments, initializes global variables,
+     and starts dispatcher and worker threads to handle requests.
+************************************************/
+int main(int argc, char *argv[]) {
+    if (argc != 6) {
+        printf("usage: %s port path num_dispatcher num_workers queue_length\n", argv[0]);
+        return -1;
     }
-  }
 
-  for(i = 0; i < num_worker; i++){
-   // fprintf(stderr, "JOINING WORKER %d \n",i);
-    if((pthread_join(worker_thread[i], NULL)) != 0){
-      printf("ERROR : Fail to join worker thread %d.\n", i);
+    // Parse command-line arguments
+    int port = atoi(argv[1]);
+    char *path = argv[2];
+    num_dispatcher = atoi(argv[3]);
+    num_worker = atoi(argv[4]);
+    queue_len = atoi(argv[5]);
+
+    // Open log file
+    logfile = fopen("server_log", "w");
+    if (!logfile) {
+        perror("Failed to open log file");
+        return -1;
     }
-  }
 
-  fprintf(stderr, "SERVER DONE \n");  // will never be reached in SOLUTION
-  fclose(logfile);//closing the log files
+    init(port);            // Start server on specified port
+    loadDatabase(path);    // Load image files into memory
+
+    // Create dispatcher and worker threads
+    int thread_ids[num_worker];
+    for (int i = 0; i < num_dispatcher; i++) {
+        pthread_create(&dispatcher_threads[i], NULL, dispatch, NULL);
+    }
+
+    for (int i = 0; i < num_worker; i++) {
+        thread_ids[i] = i;
+        pthread_create(&worker_threads[i], NULL, worker, &thread_ids[i]);
+    }
+
+    // Join dispatcher and worker threads
+    for (int i = 0; i < num_dispatcher; i++) {
+        pthread_join(dispatcher_threads[i], NULL);
+    }
+
+    for (int i = 0; i < num_worker; i++) {
+        pthread_join(worker_threads[i], NULL);
+    }
+
+    // Clean up and close log file
+    fclose(logfile);
+    return 0;
 }

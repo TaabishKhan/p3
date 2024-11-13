@@ -1,114 +1,102 @@
-#include "../include/client.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <dirent.h>
+#include <string.h>
+#include "client.h"  // Assuming client.h has necessary function declarations
 
+#define MAX_FILENAME_LEN 1024
 
+// Struct to pass parameters to each client thread
+typedef struct {
+    char filename[MAX_FILENAME_LEN];
+    int server_port;
+    char *output_dir;
+} client_thread_arg_t;
 
-int port = 0;
+void *client_thread_func(void *arg) {
+    client_thread_arg_t *thread_arg = (client_thread_arg_t *)arg;
+    int fd = setup_connection(thread_arg->server_port);  // setup_connection is a provided function
 
-pthread_t worker_thread[100];
-int worker_thread_id = 0;
-char output_path[1028];
+    if (fd < 0) {
+        perror("Connection setup failed");
+        pthread_exit(NULL);
+    }
 
-processing_args_t req_entries[100];
-
-/* TODO: implement the request_handle function to send the image to the server and recieve the processed image
-* 1. Open the file in the read-binary mode (i.e. "rb" mode) - Intermediate Submission
-* 2. Get the file length using the fseek and ftell functions - Intermediate Submission
-* 3. set up the connection with the server using the setup_connection(int port) function - Intermediate Submission
-* 4. Send the file to the server using the send_file_to_server(int fd, FILE *file, int size) function - Intermediate Submission
-* 5. Receive the processed image from the server using the receive_file_from_server(int socket, char *file_path) function
-* 6. receive_file_from_server saves the processed image in the output directory, so pass in the right directory path
-* 7. Close the file
-*/
-void * request_handle(void * img_file_path)
-{
-    char *file_path = (char *)img_file_path;
-    
-    FILE *file = fopen(file_path, "rb");
+    // Open image file
+    FILE *file = fopen(thread_arg->filename, "rb");
     if (!file) {
-        perror("File open error");
-        return NULL;
-    }
-    
-    fseek(file, 0, SEEK_END);
-    int file_size = ftell(file);
-    fseek(file, 0, SEEK_SET);
-    
-    int socket_fd = setup_connection(port);
-    if (socket_fd < 0) {
-        fprintf(stderr, "Connection setup error\n");
-        fclose(file);
-        return NULL;
-    }
-    
-    if (send_file_to_server(socket_fd, file, file_size) < 0) {
-        fprintf(stderr, "Error sending file to server\n");
-        fclose(file);
-        close(socket_fd);
-        return NULL;
+        perror("Failed to open image file");
+        close(fd);
+        pthread_exit(NULL);
     }
 
-    char output_file_path[1028];
-    snprintf(output_file_path, sizeof(output_file_path), "%s/%s", output_path, strrchr(file_path, '/') + 1);
-    if (receive_file_from_server(socket_fd, output_file_path) < 0) {
-        fprintf(stderr, "Error receiving processed file from server\n");
+    // Get image size and send to server
+    fseek(file, 0, SEEK_END);
+    size_t img_size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    send_file_to_server(fd, file, img_size);  // send_file_to_server is a provided function
+
+    // Allocate buffer for server response
+    char *response_buf = (char *)malloc(img_size);
+    if (!response_buf) {
+        perror("Failed to allocate buffer");
+        fclose(file);
+        close(fd);
+        pthread_exit(NULL);
     }
-    
+
+    // Read server response and save output
+    read(fd, response_buf, img_size);  // Assuming server response is equal in size
+    char output_path[MAX_FILENAME_LEN];
+    snprintf(output_path, MAX_FILENAME_LEN, "%s/%s", thread_arg->output_dir, strrchr(thread_arg->filename, '/'));
+
+    FILE *out_file = fopen(output_path, "wb");
+    if (out_file) {
+        fwrite(response_buf, 1, img_size, out_file);
+        fclose(out_file);
+    } else {
+        perror("Failed to open output file");
+    }
+
+    // Cleanup
+    free(response_buf);
     fclose(file);
-    close(socket_fd);
-    
-    return NULL;
+    close(fd);
+    pthread_exit(NULL);
 }
 
-/* Directory traversal function is provided to you. */
-void directory_trav(char * img_directory_path)
-{
-    char dir_path[BUFF_SIZE]; 
-    strcpy(dir_path, img_directory_path);
-    struct dirent *entry; 
-    DIR *dir = opendir(dir_path);
-    if (dir == NULL)
-    {
-        perror("Opendir ERROR");
-        exit(0);
+int main(int argc, char *argv[]) {
+    if (argc < 4) {
+        fprintf(stderr, "Usage: %s <directory> <server_port> <output_dir>\n", argv[0]);
+        exit(1);
     }
-    while ((entry = readdir(dir)) != NULL)
-    {
-        if(strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0 && strcmp(entry->d_name, ".DS_Store") != 0)
-        {
-            sprintf(req_entries[worker_thread_id].file_name, "%s/%s", dir_path, entry->d_name);
-            printf("New path: %s\n", req_entries[worker_thread_id].file_name);
-            pthread_create(&worker_thread[worker_thread_id], NULL, request_handle, (void *) req_entries[worker_thread_id].file_name);
-            worker_thread_id++;
+
+    char *dir_path = argv[1];
+    int server_port = atoi(argv[2]);
+    char *output_dir = argv[3];
+
+    DIR *dir = opendir(dir_path);
+    if (!dir) {
+        perror("Failed to open directory");
+        exit(1);
+    }
+
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_type == DT_REG) {  // Only regular files
+            pthread_t thread;
+            client_thread_arg_t *arg = malloc(sizeof(client_thread_arg_t));
+            snprintf(arg->filename, MAX_FILENAME_LEN, "%s/%s", dir_path, entry->d_name);
+            arg->server_port = server_port;
+            arg->output_dir = output_dir;
+
+            pthread_create(&thread, NULL, client_thread_func, (void *)arg);
+            pthread_detach(thread);  // Detach to auto-cleanup
         }
     }
+
     closedir(dir);
-    for(int i = 0; i < worker_thread_id; i++)
-    {
-        pthread_join(worker_thread[i], NULL);
-    }
-}
-
-
-int main(int argc, char *argv[])
-{
-    if(argc < 2)
-    {
-        fprintf(stderr, "Usage: ./client <directory path> <Server Port> <output path>\n");
-        exit(-1);
-    }
-    /*TODO:  Intermediate Submission
-    * 1. Get the input args --> (1) directory path (2) Server Port (3) output path
-    */
-
-    char *directory_path = argv[1];
-    port = atoi(argv[2]);
-    strncpy(output_path, argv[3], sizeof(output_path) - 1);
-
-    /*TODO: Intermediate Submission
-    * Call the directory_trav function to traverse the directory and send the images to the server
-    */
-
-    directory_trav(directory_path);
-    
-    return 0;  
+    pthread_exit(NULL);
 }
