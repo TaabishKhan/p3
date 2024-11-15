@@ -1,0 +1,167 @@
+Server Terminal:
+
+khan0882@csel-lindl102-17:/home/khan0882/Desktop/CSCI 4061/Projects/p3 $ ./server 8000 ./database 4 8 20
+UTILS.O: Server Started on Port 8000
+Logging request 0 by thread 1
+Logged successfully
+Logging request 0 by thread 0
+Logged successfully
+Logging request 0 by thread 2
+Logged successfully
+Logging request 0 by thread 3
+Logging request 0 by thread 4
+Logged successfully
+Logging request 1 by thread 2
+Logged successfully
+Logged successfully
+Logging request 0 by thread 5
+Logged successfully
+Logging request 1 by thread 1
+Logged successfully
+Logging request 1 by thread 0
+Logged successfully
+Logging request 0 by thread 7
+Logged successfully
+Logging request 0 by thread 6
+Logged successfully
+Logging request 2 by thread 2
+Logged successfully
+Logging request 1 by thread 3
+Logged successfully
+Logging request 1 by thread 4
+Logged successfully
+Logging request 2 by thread 3
+Logged successfully
+Logging request 2 by thread 1
+Logged successfully
+Logging request 1 by thread 6
+Logging request 1 by thread 7
+Logged successfully
+Logged successfully
+Logging request 2 by thread 7
+Logged successfully
+Logging request 3 by thread 2
+Logged successfully
+Logging request 3 by thread 1
+Logged successfully
+Logging request 3 by thread 3
+Logged successfully
+Logging request 4 by thread 2
+Logged successfully
+Logging request 4 by thread 1
+Logged successfully
+Logging request 3 by thread 7
+Logged successfully
+Logging request 2 by thread 0
+Logged successfully
+Logging request 2 by thread 4
+Logged successfully
+Logging request 3 by thread 0
+Logged successfully
+Logging request 1 by thread 5
+Logged successfully
+Logging request 5 by thread 2
+Logged successfully
+Logging request 5 by thread 1
+Logged successfully
+Logging request 2 by thread 6
+Logged successfully
+Logging request 4 by thread 7
+Logged successfully
+Logging request 4 by thread 3
+Logged successfully
+Logging request 3 by thread 4
+Logged successfully
+Logging request 4 by thread 0
+Logged successfully
+Logging request 2 by thread 5
+Logged successfully
+Logging request 6 by thread 2
+Logged successfully
+^C
+khan0882@csel-lindl102-17:/home/khan0882/Desktop/CSCI 4061/Projects/p3 $ ^C
+khan0882@csel-lindl102-17:/home/khan0882/Desktop/CSCI 4061/Projects/p3 $ 
+
+Client Terminal:
+
+khan0882@csel-lindl102-17:/home/khan0882/Desktop/CSCI 4061/Projects/p3 $ ./client ./img 8000 ./output
+Socket successfully created..
+Socket successfully created..
+Socket successfully created..
+connected to the server.. 4 
+connected to the server.. 5 
+connected to the server.. 6 
+Socket successfully created..
+Socket successfully created..
+Socket successfully created..
+connected to the server.. 7 
+connected to the server.. 9 
+connected to the server.. 10 
+Socket successfully created..
+connected to the server.. 15 
+Socket successfully created..
+connected to the server.. 18 
+Socket successfully created..
+connected to the server.. 19 
+Socket successfully created..
+Socket successfully created..
+connected to the server.. 20 
+Socket successfully created..
+connected to the server.. 21 
+connected to the server.. 25 
+Socket successfully created..
+Socket successfully created..
+connected to the server.. 27 
+connected to the server.. 30 
+Socket successfully created..
+Socket successfully created..
+connected to the server.. 31 
+connected to the server.. 32 
+Socket successfully created..
+connected to the server.. 42 
+Socket successfully created..
+Socket successfully created..
+connected to the server.. 46 
+connected to the server.. 48 
+Socket successfully created..
+Socket successfully created..
+connected to the server.. 51 
+connected to the server.. 50 
+Socket successfully created..
+connected to the server.. 55 
+Socket successfully created..
+connected to the server.. 57 
+Socket successfully created..
+connected to the server.. 64 
+Socket successfully created..
+connected to the server.. 65 
+Socket successfully created..
+connected to the server.. 66 
+Socket successfully created..
+connected to the server.. 68 
+Socket successfully created..
+connected to the server.. 72 
+Socket successfully created..
+connected to the server.. 29 
+Socket successfully created..
+connected to the server.. 58 
+Socket successfully created..
+connected to the server.. 79 
+Socket successfully created..
+connected to the server.. 82 
+Socket successfully created..
+connected to the server.. 83 
+Socket successfully created..
+Socket successfully created..
+connected to the server.. 67 
+connected to the server.. 87 
+Socket successfully created..
+connected to the server.. 76 
+Socket successfully created..
+Socket successfully created..
+connected to the server.. 94 
+Socket successfully created..
+connected to the server.. 95 
+connected to the server.. 96 
+send: Connection reset by peer
+khan0882@csel-lindl102-17:/home/khan0882/Desktop/CSCI 4061/Projects/p3 $ 

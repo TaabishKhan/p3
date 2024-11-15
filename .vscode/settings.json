@@ -64,5 +64,8 @@
     "initializer_list": "c",
     "span": "c",
     "valarray": "c"
+  },
+  "ocaml.sandbox": {
+    "kind": "global"
   }
 }

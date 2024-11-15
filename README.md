@@ -29,10 +29,10 @@ Start the Server
 
 Example:
 
-./server 8000 ./img_db 2 4 10
+./server 8000 ./database 2 4 10
 
     8000: Server listens on port 8000.
-    ./img_db: Directory containing the image database.
+    ./database: Directory containing the image database.
     2: Two dispatcher threads.
     4: Four worker threads.
     10: Queue can hold a maximum of 10 requests.
@@ -47,9 +47,9 @@ Run the Client
 
 Example:
 
-./client ./input_images 8000 ./output
+./client ./img 8000 ./output/img
 
-    ./input_images: Folder containing images to be sent to the server.
+    ./img: Folder containing images to be sent to the server.
     8000: Server port number.
     ./output: Processed images will be saved here.
 
