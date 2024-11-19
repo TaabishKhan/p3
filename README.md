@@ -11,6 +11,7 @@ Compilation
 To clean and compile the project:
 
 make clean  
+
 make
 
     make clean: Removes compiled files and clears output directories.

@@ -1,10 +1,12 @@
+// CSCI 4061 - Project 3
+
+// Define imports
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
 #include <dirent.h>
 #include <string.h>
-#include "client.h"  // Assuming client.h has necessary function declarations
-
+#include "client.h"
 #define MAX_FILENAME_LEN 1024
 
 // Struct to pass parameters to each client thread
@@ -14,10 +16,11 @@ typedef struct {
     char *output_dir;
 } client_thread_arg_t;
 
+// Client connection and image sending
 void *client_thread_func(void *arg) {
     client_thread_arg_t *thread_arg = (client_thread_arg_t *)arg;
-    int fd = setup_connection(thread_arg->server_port);  // setup_connection is a provided function
 
+    int fd = setup_connection(thread_arg->server_port);  // setup_connection is a provided function
     if (fd < 0) {
         perror("Connection setup failed");
         pthread_exit(NULL);
@@ -52,6 +55,7 @@ void *client_thread_func(void *arg) {
     char output_path[MAX_FILENAME_LEN];
     snprintf(output_path, MAX_FILENAME_LEN, "%s/%s", thread_arg->output_dir, strrchr(thread_arg->filename, '/'));
 
+    //
     FILE *out_file = fopen(output_path, "wb");
     if (out_file) {
         fwrite(response_buf, 1, img_size, out_file);
@@ -67,25 +71,34 @@ void *client_thread_func(void *arg) {
     pthread_exit(NULL);
 }
 
+// Main Method
 int main(int argc, char *argv[]) {
+
+    // Incorrect input error case
     if (argc < 4) {
         fprintf(stderr, "Usage: %s <directory> <server_port> <output_dir>\n", argv[0]);
         exit(1);
     }
 
+    // Set internal variablesfrom the input given
     char *dir_path = argv[1];
     int server_port = atoi(argv[2]);
     char *output_dir = argv[3];
 
+    // Open the input folder directory and error check
     DIR *dir = opendir(dir_path);
     if (!dir) {
         perror("Failed to open directory");
         exit(1);
     }
 
+    // Main Loop for reading input images
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
-        if (entry->d_type == DT_REG) {  // Only regular files
+
+        // Only regular files
+        if (entry->d_type == DT_REG) {
+
             pthread_t thread;
             client_thread_arg_t *arg = malloc(sizeof(client_thread_arg_t));
             snprintf(arg->filename, MAX_FILENAME_LEN, "%s/%s", dir_path, entry->d_name);
@@ -97,6 +110,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    // Finish
     closedir(dir);
     pthread_exit(NULL);
 }

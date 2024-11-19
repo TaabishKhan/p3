@@ -21,7 +21,7 @@ client: $(LIBDIR)/utils.o $(INCDIR)/utils.h $(SRCDIR)/client.c
 
 clean: clean_folder
 	rm -f server client
-	rm -f server_log
+	rm -f server_log.txt
 
 clean_folder:
 	rm -rf $(FOLDER)/*

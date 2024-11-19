@@ -2,11 +2,13 @@
 #include <math.h>
 #include <float.h>  // For DBL_MAX
 
+
 // Global Variables
-int num_dispatcher = 0; // Number of dispatcher threads
-int num_worker = 0;     // Number of worker threads
+int num_dispatcher = 0;
+int num_worker = 0;    
 FILE *logfile;          // Log file pointer
 int queue_len = 0;      // Request queue length
+pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // Queue structures and indices for tracking request addition/removal
 request_t request_queue[100];
@@ -222,27 +224,48 @@ void *worker(void *thread_id) {
         pthread_cond_signal(&queue_not_full);
         pthread_mutex_unlock(&queue_mutex);
 
-        // Initialize mse to 0 before performing the match
-        double mse = 0.0;
-
         // Perform image matching on the request buffer
         database_entry_t match = image_match(req.buffer, req.file_size);
 
-        // If a matching image is found, send it to the client and log the transaction
+        // Prepare log details
+        char log_message[2048];
+        int bytes_or_error = 0;
+
+        // Check if a matching image was found
         if (match.buffer) {
+            // Send the matched image back to the client
             send_file_to_client(req.file_descriptor, match.buffer, match.file_size);
-            printf("Logging request %d by thread %d\n", request_num, thread_id_num);
-            LogPrettyPrint(logfile, 0, thread_id_num, ++request_num, match.file_name, match.file_size, mse);
-            printf("Logged successfully\n");
+            bytes_or_error = match.file_size;
+
+            // Format the log message
+            snprintf(log_message, sizeof(log_message),
+                     "[%d][%d][%s][%d]\n",
+                     thread_id_num, ++request_num, match.file_name, bytes_or_error);
+        } 
+        else {
+            // Log an error if no match is found
+            snprintf(log_message, sizeof(log_message),
+                     "[%d][%d][Error: No match found][0]\n",
+                     thread_id_num, ++request_num);
         }
+
+        // Protect the log file with a mutex to avoid race conditions
+        //printf("Attempting to write to server_log.txt\n");
+        pthread_mutex_lock(&log_mutex);
+        fprintf(logfile, "%s", log_message);
+        fflush(logfile);
+        pthread_mutex_unlock(&log_mutex);
+        //printf("Log written to server_log.txt\n");
+
+
+        // Print to stdout
+        printf("%s", log_message);
 
         // Clean up resources for the request
         close(req.file_descriptor);
         free(req.buffer);
     }
 }
-
-
 
 /**********************************************
  * main
@@ -257,19 +280,19 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
+    // Open the server log file once
+    logfile = fopen("server_log.txt", "w");
+    if (!logfile) {
+        perror("Failed to open server_log.txt");
+        return -1;
+    }
+
     // Parse command-line arguments
     int port = atoi(argv[1]);
     char *path = argv[2];
     num_dispatcher = atoi(argv[3]);
     num_worker = atoi(argv[4]);
     queue_len = atoi(argv[5]);
-
-    // Open log file
-    logfile = fopen("server_log", "w");
-    if (!logfile) {
-        perror("Failed to open log file");
-        return -1;
-    }
 
     init(port);            // Start server on specified port
     loadDatabase(path);    // Load image files into memory
