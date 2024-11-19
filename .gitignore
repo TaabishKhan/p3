@@ -1,0 +1,57 @@
+# Ignore system files
+.DS_Store
+Thumbs.db
+
+# Ignore IDE and editor-specific files
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln
+*.swp
+
+# Ignore node.js dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Ignore compiled files
+*.class
+*.pyc
+*.o
+*.out
+*.a
+*.so
+
+# Ignore logs and databases
+*.log
+*.sqlite3
+
+# Ignore temporary and cache files
+*.tmp
+*.temp
+.cache/
+*.pid
+
+# Ignore operating system files
+*.swp
+*.lock
+*.bak
+*.old
+*.orig
+
+# Ignore Python virtual environments
+venv/
+__pycache__/
+
+# Ignore build artifacts
+/dist/
+/build/
+/target/
+
+# Ignore config files (if they shouldn't be in the repo)
+.env
+*.config
+*.local
