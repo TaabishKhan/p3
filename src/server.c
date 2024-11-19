@@ -1,3 +1,6 @@
+// CSCI 4061 - Project 3
+
+// Define imports
 #include "../include/server.h"
 #include <math.h>
 #include <float.h>  // For DBL_MAX
@@ -92,6 +95,8 @@ database_entry_t image_match(char *input_image, int size) {
       - threadId, requestNumber, file_name, file_size: log details
 ************************************************/
 void LogPrettyPrint(FILE *to_write, int level, int threadId, int requestNumber, char *file_name, int file_size, double mse) {
+
+    // Print in the preferred format giving details for logging
     fprintf(to_write ? to_write : stdout, "[%d][%d][%d][%s][%d bytes][%.2f MSE]\n", 
             level, threadId, requestNumber, file_name, file_size, mse);
 }
@@ -107,9 +112,10 @@ void LogPrettyPrint(FILE *to_write, int level, int threadId, int requestNumber, 
      global database for fast lookup.
 ************************************************/
 void loadDatabase(char *path) {
+
+    // Open the server database and error check
     DIR *dir = opendir(path);
     struct dirent *entry;
-
     if (!dir) {
         perror("Failed to open database directory");
         return;
